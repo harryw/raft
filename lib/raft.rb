@@ -330,7 +330,7 @@ module Raft
     def abs_log_index_for(prev_log_index, prev_log_term)
       @persistent_state.log.rindex {|log_entry| log_entry.index == prev_log_index && log_entry.term == prev_log_term}
     end
-    protected :log_index_contains_term
+    protected :abs_log_index_for
 
     def truncate_and_update_log(abs_log_index, entries)
       log = @persistent_state.log
@@ -344,7 +344,7 @@ module Raft
       log = log.concat(entries) unless entries.empty?
       @persistent_state.log = log
     end
-    protected :truncate_log_to_index_and_update
+    protected :truncate_and_update_log
 
     def update_commit_index(commit_index)
       return false if @temporary_state.commit_index && @temporary_state.commit_index > commit_index
