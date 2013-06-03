@@ -1,0 +1,39 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.3.4)
+    async-rack (0.5.1)
+      rack (~> 1.1)
+    em-synchrony (1.0.3)
+      eventmachine (>= 1.0.0.beta.1)
+    em-websocket (0.3.8)
+      addressable (>= 2.1.1)
+      eventmachine (>= 0.12.9)
+    eventmachine (1.0.3)
+    goliath (1.0.2)
+      async-rack
+      em-synchrony (>= 1.0.0)
+      em-websocket (= 0.3.8)
+      eventmachine (>= 1.0.0.beta.4)
+      http_parser.rb (= 0.5.3)
+      log4r
+      multi_json
+      rack (>= 1.2.2)
+      rack-contrib
+      rack-respond_to
+    http_parser.rb (0.5.3)
+    log4r (1.1.10)
+    multi_json (1.7.4)
+    rack (1.5.2)
+    rack-accept-media-types (0.9)
+    rack-contrib (1.1.0)
+      rack (>= 0.9.1)
+    rack-respond_to (0.9.8)
+      rack-accept-media-types (>= 0.6)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  eventmachine (~> 1.0.0)
+  goliath (~> 1.0.0)
