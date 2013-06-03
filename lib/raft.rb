@@ -2,7 +2,7 @@ module Raft
   Config = Struct.new(:rpc_provider, :async_provider, :election_timeout, :update_interval, :heartbeat_interval)
 
   class Cluster
-    attr_accessible :node_ids
+    attr_accessor :node_ids
 
     def quorum
       @node_ids.size / 2 + 1 # integer division rounds down
