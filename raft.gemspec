@@ -9,5 +9,12 @@ Gem::Specification.new do |s|
   s.files       = ["lib/raft.rb", "lib/raft/goliath.rb"]
   s.homepage    = 'http://github.com/harryw/raft'
 
-  s.add_dependency 'goliath', '~> 1.0.0'
+  s.add_dependency 'goliath', '~> 1.0'
+  s.add_dependency 'multi_json', '~> 1.3'
+
+  s.add_development_dependency 'cucumber', '~> 1.0'
+  s.add_development_dependency 'em-http-request', '~> 1.0'
+  s.add_development_dependency 'rspec', '~> 2.0'
+  s.add_development_dependency 'oj', '~> 2.0'
+
 end

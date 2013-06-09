@@ -2,10 +2,14 @@ module Raft
   Config = Struct.new(:rpc_provider, :async_provider, :election_timeout, :update_interval, :heartbeat_interval)
 
   class Cluster
-    attr_accessor :node_ids
+    attr_reader :node_ids
+
+    def initialize
+      @node_ids = []
+    end
 
     def quorum
-      @node_ids.size / 2 + 1 # integer division rounds down
+      @node_ids.count / 2 + 1 # integer division rounds down
     end
   end
 
@@ -67,8 +71,8 @@ module Raft
 
   class Timer
     def initialize(interval)
-      @timeout = Time.now + timeout
-      reset!
+      @interval = interval
+      @start = Time.now - interval
     end
 
     def reset!
@@ -97,7 +101,8 @@ module Raft
     CANDIDATE_ROLE = 1
     LEADER_ROLE = 2
 
-    def initialize(id, config, cluster)
+    def initialize(id, config, cluster, commit_handler=nil, &block)
+      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       @id = id
       @role = FOLLOWER_ROLE
       @config = config
@@ -105,9 +110,11 @@ module Raft
       @persistent_state = PersistentState.new(0, nil, [])
       @temporary_state = TemporaryState.new(nil, nil)
       @election_timer = Timer.new(config.election_timeout)
+      @commit_handler = commit_handler || (block.to_proc if block_given?)
     end
 
     def update
+      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       case @role
       when FOLLOWER_ROLE
         follower_update
@@ -116,6 +123,7 @@ module Raft
       when LEADER_ROLE
         leader_update
       end
+      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
     end
 
     def follower_update
@@ -131,27 +139,32 @@ module Raft
         @persistent_state.current_term += 1
         @persistent_state.voted_for = @id
         reset_election_timeout
-        request = RequestVoteRequest.new(@persistent_state.current_term, @id, @persistent_state.log.last.index, @persistent_state.log.last.term)
+        last_log_entry = @persistent_state.log.last
+        log_index = last_log_entry ? last_log_entry.index : nil
+        log_term = last_log_entry ? last_log_entry.term : nil
+        request = RequestVoteRequest.new(@persistent_state.current_term, @id, log_index, log_term)
         votes_for = 1 # candidate always votes for self
         votes_against = 0
         quorum = @cluster.quorum
-        elected = @config.rpc_provider.request_votes(request, @cluster) do |_, response|
+        @config.rpc_provider.request_votes(request, @cluster) do |_, response|
+          elected = nil # no majority result yet
           if response.term > @persistent_state.current_term
             @role = FOLLOWER_ROLE
-            return false
+            elected = false
           elsif response.vote_granted
             votes_for += 1
-            return false if votes_for >= quorum
+            elected = true if votes_for >= quorum
           else
             votes_against += 1
-            return false if votes_against >= quorum
+            elected = false if votes_against >= quorum
           end
-          nil # no majority result yet
+          elected
         end
-        if elected
+        if votes_for >= quorum
           @role = LEADER_ROLE
           establish_leadership
         end
+        STDOUT.write("\n\nrole is: #{@role}\n\n")
       end
     end
     protected :candidate_update
@@ -161,18 +174,36 @@ module Raft
         @leadership_state.update_timer.reset!
         send_heartbeats
       end
-      @temporary_state.commit_index = @leadership_state.followers.values.
-          select {|follower_state| follower_state.succeeded}.
-          map {|follower_state| follower_state.next_index}.
-          sort[@cluster.quorum - 1]
+      if @leadership_state.followers.any?
+        new_commit_index = @leadership_state.followers.values.
+            select {|follower_state| follower_state.succeeded}.
+            map {|follower_state| follower_state.next_index}.
+            sort[@cluster.quorum - 1]
+      else
+        new_commit_index = @persistent_state.log.size - 1
+      end
+      handle_commits(new_commit_index)
     end
     protected :leader_update
 
+    def handle_commits(new_commit_index)
+      return if new_commit_index == @temporary_state.commit_index
+      next_commit = @temporary_state.commit_index.nil? ? 0 : @temporary_state.commit_index + 1
+      while next_commit <= new_commit_index
+        @commit_handler.call(@persistent_state.log[next_commit].command) if @commit_handler
+        @temporary_state.commit_index = next_commit
+        next_commit += 1
+      end
+    end
+    protected :handle_commits
+
     def establish_leadership
       @leadership_state = LeadershipState.new(@config.update_interval)
+      @temporary_state.leader_id = @id
       @cluster.node_ids.each do |node_id|
+        next if node_id == @id
         follower_state = (@leadership_state.followers[node_id] ||= FollowerState.new)
-        follower_state.next_index = @persistent_state.log.size + 1
+        follower_state.next_index = @persistent_state.log.size
         follower_state.succeeded = false
       end
       send_heartbeats
@@ -180,11 +211,14 @@ module Raft
     protected :establish_leadership
 
     def send_heartbeats
+      last_log_entry = @persistent_state.log.last
+      log_index = last_log_entry ? last_log_entry.index : nil
+      log_term = last_log_entry ? last_log_entry.term : nil
       request = AppendEntriesRequest.new(
           @persistent_state.current_term,
           @id,
-          @persistent_state.log.size - 1,
-          @persistent_state.log.last.term,
+          log_index,
+          log_term,
           [],
           @temporary_state.commit_index)
 
@@ -281,35 +315,48 @@ module Raft
     end
 
     def handle_command(request)
+      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       response = CommandResponse.new(false)
       case @role
       when FOLLOWER_ROLE
+        await_leader
         response = @config.rpc_provider.command(request, @temporary_state.leader_id)
       when CANDIDATE_ROLE
         await_leader
         response = handle_command(request)
       when LEADER_ROLE
-        log_entry = LogEntry.new(@persistent_state.current_term, @persistent_state.log.last.index + 1, request.command)
+        last_log = @persistent_state.log.last
+        log_entry = LogEntry.new(@persistent_state.current_term, last_log ? last_log.index + 1 : 0, request.command)
         @persistent_state.log << log_entry
         await_consensus(log_entry)
+        response = CommandResponse.new(true)
       end
       response
     end
 
     def await_consensus(log_entry)
       @config.async_provider.await do
+        STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
         persisted_log_entry = @persistent_state.log[log_entry.index - 1]
-        @temporary_state.commit_index >= log_entry.index &&
+        !@temporary_state.commit_index.nil? &&
+            @temporary_state.commit_index >= log_entry.index &&
             persisted_log_entry.term == log_entry.term &&
             persisted_log_entry.command == log_entry.command
       end
+      STDOUT.write("\n\nconsensus achieved: #{self.pretty_inspect}")
     end
     protected :await_consensus
 
     def await_leader
+      if @temporary_state.leader_id.nil?
+        @role = CANDIDATE_ROLE
+      end
+      STDOUT.write("\n\nawaiting leader...\n\n")
       @config.async_provider.await do
+        STDOUT.write("\n\nstill awaiting leader... (role: #{@role}, leader: #{@temporary_state.leader_id})\n\n")
         @role != CANDIDATE_ROLE && !@temporary_state.leader_id.nil?
       end
+      STDOUT.write("\n\nleader is: #{@temporary_state.leader_id}\n\n")
     end
     protected :await_leader
 
@@ -346,9 +393,10 @@ module Raft
     end
     protected :truncate_and_update_log
 
-    def update_commit_index(commit_index)
-      return false if @temporary_state.commit_index && @temporary_state.commit_index > commit_index
-      @temporary_state.commit_index = commit_index
+    def update_commit_index(new_commit_index)
+      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
+      return false if @temporary_state.commit_index && @temporary_state.commit_index > new_commit_index
+      handle_commits(new_commit_index)
     end
     protected :update_commit_index
   end
