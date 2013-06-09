@@ -3,7 +3,7 @@ Feature: Elect a single leader for the cluster
   Scenario: Elect a leader when there is just one node
     Given there is a node on port 8000
     When I send the command "A" to the node on port 8000
-    Then the node on port 8000 should be in the "LEADER" state
+    Then the node on port 8000 should be in the "LEADER" role
 
   Scenario: Elect a leader when there are many nodes
     Given there are nodes on the following ports:
@@ -13,7 +13,7 @@ Feature: Elect a single leader for the cluster
       | 8003 |
       | 8004 |
     When I send the command "A" to the node on port 8000
-    Then just one of the nodes should be in the "LEADER" state
+    Then just one of the nodes should be in the "LEADER" role
 
   Scenario: Elect a leader from an empty state
     Given there are nodes on the following ports:
@@ -22,7 +22,7 @@ Feature: Elect a single leader for the cluster
       | 8002 |
     And all the nodes have empty logs
     When I send the command "A" to the node on port 8000
-    Then just one of the nodes should be in the "LEADER" state
+    Then just one of the nodes should be in the "LEADER" role
 
 
   Scenario: Elect a node with a longer-than-most log
@@ -42,7 +42,7 @@ Feature: Elect a single leader for the cluster
       | 1     | 1    | B       |
     And the node on port 8001's current term is 1
     When I send the command "D" to the node on port 8000
-    Then a single node on one of the following ports should be in the "LEADER" state:
+    Then a single node on one of the following ports should be in the "LEADER" role:
       | 8001 |
       | 8002 |
 

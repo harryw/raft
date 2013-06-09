@@ -102,7 +102,6 @@ module Raft
     LEADER_ROLE = 2
 
     def initialize(id, config, cluster, commit_handler=nil, &block)
-      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       @id = id
       @role = FOLLOWER_ROLE
       @config = config
@@ -114,7 +113,6 @@ module Raft
     end
 
     def update
-      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       case @role
       when FOLLOWER_ROLE
         follower_update
@@ -123,7 +121,6 @@ module Raft
       when LEADER_ROLE
         leader_update
       end
-      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
     end
 
     def follower_update
@@ -164,7 +161,6 @@ module Raft
           @role = LEADER_ROLE
           establish_leadership
         end
-        STDOUT.write("\n\nrole is: #{@role}\n\n")
       end
     end
     protected :candidate_update
@@ -315,7 +311,6 @@ module Raft
     end
 
     def handle_command(request)
-      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       response = CommandResponse.new(false)
       case @role
       when FOLLOWER_ROLE
@@ -336,14 +331,12 @@ module Raft
 
     def await_consensus(log_entry)
       @config.async_provider.await do
-        STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
         persisted_log_entry = @persistent_state.log[log_entry.index - 1]
         !@temporary_state.commit_index.nil? &&
             @temporary_state.commit_index >= log_entry.index &&
             persisted_log_entry.term == log_entry.term &&
             persisted_log_entry.command == log_entry.command
       end
-      STDOUT.write("\n\nconsensus achieved: #{self.pretty_inspect}")
     end
     protected :await_consensus
 
@@ -351,12 +344,9 @@ module Raft
       if @temporary_state.leader_id.nil?
         @role = CANDIDATE_ROLE
       end
-      STDOUT.write("\n\nawaiting leader...\n\n")
       @config.async_provider.await do
-        STDOUT.write("\n\nstill awaiting leader... (role: #{@role}, leader: #{@temporary_state.leader_id})\n\n")
         @role != CANDIDATE_ROLE && !@temporary_state.leader_id.nil?
       end
-      STDOUT.write("\n\nleader is: #{@temporary_state.leader_id}\n\n")
     end
     protected :await_leader
 
@@ -394,7 +384,6 @@ module Raft
     protected :truncate_and_update_log
 
     def update_commit_index(new_commit_index)
-      STDOUT.write("\n\n#{self.class} #{__method__} #{__FILE__} #{__LINE__}\n\n")
       return false if @temporary_state.commit_index && @temporary_state.commit_index > new_commit_index
       handle_commits(new_commit_index)
     end

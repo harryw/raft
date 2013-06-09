@@ -17,16 +17,13 @@ module Raft
       use ::Goliath::Rack::Params
 
       def initialize(node)
-        STDOUT.write("\n\n#{self.class} #{__method__}\n\n")
         @node = node
       end
 
       HEADERS = { 'Content-Type' => 'application/json' }
 
       def response(env)
-        STDOUT.write("\n\n#{self.class} #{__method__} #{__LINE__}\n\n")
-        STDOUT.write("\n\n#{env.pretty_inspect}\n\n")
-        resp = case env['REQUEST_PATH']
+        case env['REQUEST_PATH']
         when '/request_vote'
           handle_errors { request_vote_response(env['params']) }
         when '/append_entries'
@@ -36,9 +33,6 @@ module Raft
         else
           error_response(404, 'not found')
         end
-        STDOUT.write("\n\n#{self.class} #{__method__} #{__LINE__}\n\n")
-        Raft::Goliath.log(resp.pretty_inspect)
-        resp
       end
 
       def request_vote_response(params)
@@ -78,13 +72,10 @@ module Raft
       end
 
       def error_message(exception)
-        msg = "#{exception.message}\n\t#{exception.backtrace.join("\n\t")}"
-        STDOUT.write("\n\nerror message: #{msg}\n\n")
-        msg
+        "#{exception.message}\n\t#{exception.backtrace.join("\n\t")}"
       end
 
       def error_response(code, exception)
-        STDOUT.write("\n\n#{self.class} #{__method__} #{__LINE__}\n\n")
         [code, HEADERS, { 'error' => error_message(exception) }]
       end
     end
@@ -110,7 +101,6 @@ module Raft
       attr_reader :uri_generator
 
       def initialize(uri_generator)
-        STDOUT.write("\n\n#{self.class} #{__method__}\n\n")
         @uri_generator = uri_generator
       end
 
@@ -146,7 +136,6 @@ module Raft
       def append_entries_to_follower(request, node_id, &block)
         sent_hash = HashMarshalling.object_to_hash(request, %w(term leader_id prev_log_index prev_log_term entries commit_index))
         sent_json = MultiJson.dump(sent_hash)
-        STDOUT.write("sent_json: #{sent_json}")
         EM.synchrony do
           http = EventMachine::HttpRequest.new(uri_generator.call(node_id, 'append_entries')).apost(
               :body => sent_json,
@@ -154,7 +143,6 @@ module Raft
           http.callback do
             if http.response_header.status == 200
               received_hash = MultiJson.load(http.response)
-              STDOUT.write("received_hash: #{received_hash}")
               response = HashMarshalling.hash_to_object(received_hash, Raft::AppendEntriesResponse)
               yield node_id, response
             else
@@ -167,16 +155,12 @@ module Raft
       def command(request, node_id)
         sent_hash = HashMarshalling.object_to_hash(request, %w(command))
         sent_json = MultiJson.dump(sent_hash)
-        STDOUT.write("\nsent_json: #{sent_json}\n")
         http = EventMachine::HttpRequest.new(uri_generator.call(node_id, 'command')).apost(
             :body => sent_json,
             :head => { 'Content-Type' => 'application/json' })
         http = EM::Synchrony.sync(http)
-              STDOUT.write("\nresponse status: #{http.response_header.status}\n")
-              STDOUT.write("\nresponse: #{http.pretty_inspect}\n")
         if http.response_header.status == 200
           received_hash = MultiJson.load(http.response)
-          STDOUT.write("received_hash: #{received_hash}")
           HashMarshalling.hash_to_object(received_hash, Raft::CommandResponse)
         else
           Raft::Goliath.log("command failed for node '#{node_id}' with code #{http.response_header.code}")
@@ -218,7 +202,7 @@ module Raft
       @runner.run
       @running = true
 
-      @update_timer = EventMachine.add_periodic_timer node.config.update_interval, Proc.new { STDOUT.write("\n\nUPDATE\n\n"); @node.update }
+      @update_timer = EventMachine.add_periodic_timer node.config.update_interval, Proc.new { @node.update }
       @node.update
     end
 

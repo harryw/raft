@@ -23,8 +23,8 @@ def create_node_on_port(port)
   @goliaths[port].start(port: port)
 end
 
-def state_code(state)
-  case state
+def role_code(role)
+  case role
   when /leader/i
     Raft::Node::LEADER_ROLE
   when /follower/i
@@ -58,8 +58,8 @@ When(/^I send the command "(.*?)" to the node on port (\d+)$/) do |command, port
   fail "request unfinished" unless http.finished?
 end
 
-Then(/^the node on port (\d+) should be in the "(.*?)" state$/) do |port, state|
-  @goliaths[port].node.role.should == state_code(state)
+Then(/^the node on port (\d+) should be in the "(.*?)" role$/) do |port, role|
+  @goliaths[port].node.role.should == role_code(role)
 end
 
 Given(/^there are nodes on the following ports:$/) do |table|
@@ -68,8 +68,8 @@ Given(/^there are nodes on the following ports:$/) do |table|
   end
 end
 
-Then(/^just one of the nodes should be in the "(.*?)" state$/) do |state|
-  @goliaths.values.select {|goliath| goliath.node.role == state_code(state)}
+Then(/^just one of the nodes should be in the "(.*?)" role$/) do |role|
+  @goliaths.values.select {|goliath| goliath.node.role == role_code(role)}
 end
 
 Given(/^all the nodes have empty logs$/) do
@@ -84,15 +84,15 @@ end
 
 Given(/^the node on port (\d+) has the following log:$/) do |port, table|
   log = table.hashes.map {|row| Raft::LogEntry.new(row['term'], row['index'], row['command'])}.to_a
-  update_log_on_node(port, log)
+  update_log_on_node(@goliaths[port].node, log)
 end
 
 Given(/^the node on port (\d+)'s current term is (\d+)$/) do |port, term|
   @goliaths[port].node.persistent_state.current_term = term.to_i
 end
 
-Then(/^a single node on one of the following ports should be in the "(.*?)" state:$/) do |state, table|
-  table.raw.select {|port| @goliaths[port].node.state == state_code(state)}.should have(1).item
+Then(/^a single node on one of the following ports should be in the "(.*?)" role:$/) do |role, table|
+  table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
 end
 
 Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
