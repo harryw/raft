@@ -4,14 +4,13 @@ Before do
   @config = Raft::Config.new(
       Raft::Goliath.rpc_provider(Proc.new {|node_id, message| URI("http://localhost:#{node_id}/#{message}")}),
       Raft::Goliath.async_provider,
-      2, #election_timeout seconds
-      0.1, #update_interval seconds
-      0.5) #heartbeat_interval second
+      3.0, #election_timeout seconds
+      0.2, #update_interval seconds
+      2.0) #heartbeat_interval second
   @cluster = Raft::Cluster.new
 end
 
 After do
-  puts "AFTER"
   @goliaths.values.each {|goliath| goliath.stop}
   EventMachine.stop
 end
@@ -53,9 +52,12 @@ When(/^I send the command "(.*?)" to the node on port (\d+)$/) do |command, port
   http = EventMachine::HttpRequest.new("http://localhost:#{port}/command").apost(
       :body => %Q({"command": "#{command}"}),
       :head => { 'Content-Type' => 'application/json' })
-  http.timeout 4
+  http.timeout 2
+  #puts "EM.threadpool.count:#{EM.threadpool.count}"
   http = EM::Synchrony.sync(http)
+  #puts "EM.threadpool.count:#{EM.threadpool.count}"
   fail "request unfinished" unless http.finished?
+  #fail "request unfinished (http = #{http.pretty_inspect})" unless http.finished?
 end
 
 Then(/^the node on port (\d+) should be in the "(.*?)" role$/) do |port, role|
@@ -83,7 +85,7 @@ Given(/^the nodes on port (\d+) has an empty log$/) do |port|
 end
 
 Given(/^the node on port (\d+) has the following log:$/) do |port, table|
-  log = table.hashes.map {|row| Raft::LogEntry.new(row['term'], row['index'], row['command'])}.to_a
+  log = table.hashes.map {|row| Raft::LogEntry.new(row['term'].to_i, row['index'].to_i, row['command'])}.to_a
   update_log_on_node(@goliaths[port].node, log)
 end
 
@@ -96,7 +98,7 @@ Then(/^a single node on one of the following ports should be in the "(.*?)" role
 end
 
 Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
-  log = table.hashes.map {|row| Raft::LogEntry.new(row['term'], row['index'], row['command'])}.to_a
+  log = table.hashes.map {|row| Raft::LogEntry.new(row['term'].to_i, row['index'].to_i, row['command'])}.to_a
   @goliaths[port].node.persistent_state.log.should == log
 end
 

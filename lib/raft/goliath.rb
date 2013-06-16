@@ -46,13 +46,15 @@ module Raft
       end
 
       def append_entries_response(params)
+        entries = params['entries'].map {|entry| Raft::LogEntry.new(entry['term'], entry['index'], entry['command'])}
         request = Raft::AppendEntriesRequest.new(
             params['term'],
             params['leader_id'],
             params['prev_log_index'],
             params['prev_log_term'],
-            params['entries'],
+            entries,
             params['commit_index'])
+        #STDOUT.write("\nnode #{@node.id} received entries: #{request.entries.pretty_inspect}\n")
         response = @node.handle_append_entries(request)
         [200, HEADERS, { 'term' => response.term, 'success' => response.success }]
       end
@@ -72,7 +74,7 @@ module Raft
       end
 
       def error_message(exception)
-        "#{exception.message}\n\t#{exception.backtrace.join("\n\t")}"
+        "#{exception.message}\n\t#{exception.backtrace.join("\n\t")}".tap {|m| STDOUT.write("\n\n\t#{m}\n\n")}
       end
 
       def error_response(code, exception)
@@ -96,7 +98,6 @@ module Raft
       end
     end
 
-    #TODO: implement HttpJsonRpcProvider!
     class HttpJsonRpcProvider < Raft::RpcProvider
       attr_reader :uri_generator
 
@@ -107,6 +108,7 @@ module Raft
       def request_votes(request, cluster, &block)
         sent_hash = HashMarshalling.object_to_hash(request, %w(term candidate_id last_log_index last_log_term))
         sent_json = MultiJson.dump(sent_hash)
+        deferred_calls = []
         EM.synchrony do
           cluster.node_ids.each do |node_id|
             next if node_id == request.candidate_id
@@ -117,39 +119,60 @@ module Raft
               if http.response_header.status == 200
                 received_hash = MultiJson.load(http.response)
                 response = HashMarshalling.hash_to_object(received_hash, Raft::RequestVoteResponse)
-                yield node_id, response
+                #STDOUT.write("\n\t#{node_id} responded #{response.vote_granted} to #{request.candidate_id}\n\n")
+                yield node_id, request, response
               else
-                Raft::Goliath.log("request_vote failed for node '#{node_id}' with code #{http.response_header.code}")
+                Raft::Goliath.log("request_vote failed for node '#{node_id}' with code #{http.response_header.status}")
               end
             end
+            deferred_calls << http
           end
+        end
+        deferred_calls.each do |http|
+          EM::Synchrony.sync http
         end
       end
 
       def append_entries(request, cluster, &block)
-        cluster.node_ids.each do |node_id|
-          next if node_id == request.leader_id
-          append_entries_to_follower(request, node_id, &block)
+        deferred_calls = []
+        EM.synchrony do
+          cluster.node_ids.each do |node_id|
+            next if node_id == request.leader_id
+            deferred_calls << create_append_entries_to_follower_request(request, node_id, &block)
+          end
+        end
+        deferred_calls.each do |http|
+          EM::Synchrony.sync http
         end
       end
 
       def append_entries_to_follower(request, node_id, &block)
+#        EM.synchrony do
+          create_append_entries_to_follower_request(request, node_id, &block)
+#        end
+      end
+
+      def create_append_entries_to_follower_request(request, node_id, &block)
         sent_hash = HashMarshalling.object_to_hash(request, %w(term leader_id prev_log_index prev_log_term entries commit_index))
+        sent_hash['entries'] = sent_hash['entries'].map {|obj| HashMarshalling.object_to_hash(obj, %w(term index command))}
         sent_json = MultiJson.dump(sent_hash)
-        EM.synchrony do
-          http = EventMachine::HttpRequest.new(uri_generator.call(node_id, 'append_entries')).apost(
-              :body => sent_json,
-              :head => { 'Content-Type' => 'application/json' })
-          http.callback do
-            if http.response_header.status == 200
-              received_hash = MultiJson.load(http.response)
-              response = HashMarshalling.hash_to_object(received_hash, Raft::AppendEntriesResponse)
-              yield node_id, response
-            else
-              Raft::Goliath.log("append_entries failed for node '#{node_id}' with code #{http.response_header.status}")
-            end
+        raise "replicating to self!" if request.leader_id == node_id
+        #STDOUT.write("\nleader #{request.leader_id} replicating entries to #{node_id}: #{sent_hash.pretty_inspect}\n")#"\t#{caller[0..4].join("\n\t")}")
+
+        http = EventMachine::HttpRequest.new(uri_generator.call(node_id, 'append_entries')).apost(
+            :body => sent_json,
+            :head => { 'Content-Type' => 'application/json' })
+        http.callback do
+          #STDOUT.write("\nleader #{request.leader_id} calling back to #{node_id} to append entries\n")
+          if http.response_header.status == 200
+            received_hash = MultiJson.load(http.response)
+            response = HashMarshalling.hash_to_object(received_hash, Raft::AppendEntriesResponse)
+            yield node_id, response
+          else
+            Raft::Goliath.log("append_entries failed for node '#{node_id}' with code #{http.response_header.status}")
           end
         end
+        http
       end
 
       def command(request, node_id)
@@ -163,7 +186,7 @@ module Raft
           received_hash = MultiJson.load(http.response)
           HashMarshalling.hash_to_object(received_hash, Raft::CommandResponse)
         else
-          Raft::Goliath.log("command failed for node '#{node_id}' with code #{http.response_header.code}")
+          Raft::Goliath.log("command failed for node '#{node_id}' with code #{http.response_header.status}")
           CommandResponse.new(false)
         end
       end
@@ -171,8 +194,10 @@ module Raft
 
     class EventMachineAsyncProvider < Raft::AsyncProvider
       def await
+        f = Fiber.current
         until yield
-          EM::Synchrony.sleep(0.1)
+          EM.next_tick {f.resume}
+          Fiber.yield
         end
       end
     end
@@ -202,8 +227,13 @@ module Raft
       @runner.run
       @running = true
 
-      @update_timer = EventMachine.add_periodic_timer node.config.update_interval, Proc.new { @node.update }
-      @node.update
+      update_proc = Proc.new do
+        EM.synchrony do
+          @node.update
+        end
+      end
+      @update_timer = EventMachine.add_periodic_timer(node.config.update_interval, update_proc)
+#      @node.update
     end
 
     def stop
