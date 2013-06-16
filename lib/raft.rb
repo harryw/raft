@@ -21,6 +21,22 @@ module Raft
     def initialize(term, index, command)
       @term, @index, @command = term, index, command
     end
+
+    def ==(other)
+      [:term, :index, :command].all? do |attr|
+        self.send(attr) == other.send(attr)
+      end
+    end
+
+    def eql?(other)
+      self == other
+    end
+
+    def hash
+      [:term, :index, :command].reduce(0) do |h, attr|
+        h ^= self.send(attr)
+      end
+    end
   end
 
   class Log < DelegateClass(Array)

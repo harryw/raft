@@ -52,7 +52,7 @@ Feature: Elect a single leader for the cluster
     When I send the command "A" to the node on port 8000
     Then the node on port 8000 should have the following log:
       | index | term | command |
-      | 0     | 0    | A       |
+      | 0     | 1    | A       |
 
   Scenario: Replicate the leader's log to an empty log
     Given there are nodes on the following ports:
