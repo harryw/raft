@@ -8,6 +8,7 @@ Gem::Specification.new do |s|
   s.email       = 'hwilkinson@mdsol.com'
   s.files       = ["lib/raft.rb", "lib/raft/goliath.rb"]
   s.homepage    = 'http://github.com/harryw/raft'
+  s.license     = 'MIT'
 
   s.add_dependency 'goliath', '~> 1.0'
   s.add_dependency 'multi_json', '~> 1.3'
