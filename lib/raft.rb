@@ -212,7 +212,7 @@ module Raft
 
     def follower_update
       if @election_timer.timed_out?
-        STDOUT.write("follower node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
+        #STDOUT.write("follower node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
         @role = CANDIDATE_ROLE
         candidate_update
       end
@@ -222,7 +222,7 @@ module Raft
 
     def candidate_update
       if @election_timer.timed_out?
-        STDOUT.write("candidate node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
+        #STDOUT.write("candidate node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
         @persistent_state.current_term += 1
         @persistent_state.voted_for = @id
         reset_election_timeout
@@ -253,7 +253,7 @@ module Raft
           elected
         end
         if votes_for >= quorum
-          STDOUT.write("\n#{@id} becomes leader for term #{@persistent_state.current_term}\n\n")
+          #STDOUT.write("\n#{@id} becomes leader for term #{@persistent_state.current_term}\n\n")
           @role = LEADER_ROLE
           establish_leadership
         else
@@ -313,7 +313,7 @@ module Raft
     protected :establish_leadership
 
     def send_heartbeats
-      STDOUT.write("\nnode #{@id} sending heartbeats at #{Time.now.strftime('%H:%M:%S:%L')}\n")
+      #STDOUT.write("\nnode #{@id} sending heartbeats at #{Time.now.strftime('%H:%M:%S:%L')}\n")
       last_log_entry = @persistent_state.log.last
       log_index = last_log_entry ? last_log_entry.index : nil
       log_term = last_log_entry ? last_log_entry.term : nil
@@ -371,7 +371,7 @@ module Raft
     protected :append_entries_to_follower
 
     def handle_request_vote(request)
-      STDOUT.write("\nnode #{@id} handling vote request from #{request.candidate_id}\n")
+      #STDOUT.write("\nnode #{@id} handling vote request from #{request.candidate_id}\n")
       response = RequestVoteResponse.new
       response.term = @persistent_state.current_term
       response.vote_granted = false
@@ -407,11 +407,12 @@ module Raft
     end
 
     def handle_append_entries(request)
-      #STDOUT.write("\n\nnode #{@id} handle_append_entries: #{request.entries.pretty_inspect}\n\n") if request.prev_log_index.nil?
+      #STDOUT.write("\n\nnode #{@id} handle_append_entries: #{request.entries.pretty_inspect}\n\n") #if request.prev_log_index.nil?
       response = AppendEntriesResponse.new
       response.term = @persistent_state.current_term
       response.success = false
 
+      #STDOUT.write("\n\nnode #{@id} handle_append_entries for term #{request.term} (current is #{@persistent_state.current_term})\n")# if request.prev_log_index.nil?
       return response if request.term < @persistent_state.current_term
       #STDOUT.write("\n\nnode #{@id} handle_append_entries stage 2\n") if request.prev_log_index.nil?
 

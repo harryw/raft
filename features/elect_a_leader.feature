@@ -9,9 +9,9 @@ Feature: Elect a single leader for the cluster
     Given there are nodes on the following ports:
       | 8000 |
       | 8001 |
-#      | 8002 |
-#      | 8003 |
-#      | 8004 |
+      | 8002 |
+      | 8003 |
+      | 8004 |
     When I send the command "A" to the node on port 8000
     Then just one of the nodes should be in the "LEADER" role
 
