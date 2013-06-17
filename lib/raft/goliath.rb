@@ -36,6 +36,7 @@ module Raft
       end
 
       def request_vote_response(params)
+        #STDOUT.write("\nnode #{@node.id} received request_vote from #{params['candidate_id']}, term #{params['term']}\n")
         request = Raft::RequestVoteRequest.new(
             params['term'],
             params['candidate_id'],
@@ -46,6 +47,7 @@ module Raft
       end
 
       def append_entries_response(params)
+        STDOUT.write("\nnode #{@node.id} received append_entries from #{params['leader_id']}, term #{params['term']}\n")
         entries = params['entries'].map {|entry| Raft::LogEntry.new(entry['term'], entry['index'], entry['command'])}
         request = Raft::AppendEntriesRequest.new(
             params['term'],

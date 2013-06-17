@@ -4,9 +4,10 @@ Before do
   @config = Raft::Config.new(
       Raft::Goliath.rpc_provider(Proc.new {|node_id, message| URI("http://localhost:#{node_id}/#{message}")}),
       Raft::Goliath.async_provider,
-      3.0, #election_timeout seconds
+      1.5, #election_timeout seconds
+      1.0, #election_splay seconds
       0.2, #update_interval seconds
-      2.0) #heartbeat_interval second
+      1.0) #heartbeat_interval second
   @cluster = Raft::Cluster.new
 end
 
@@ -52,11 +53,13 @@ When(/^I send the command "(.*?)" to the node on port (\d+)$/) do |command, port
   http = EventMachine::HttpRequest.new("http://localhost:#{port}/command").apost(
       :body => %Q({"command": "#{command}"}),
       :head => { 'Content-Type' => 'application/json' })
-  http.timeout 2
+  http.timeout 5
+  http.errback {|*args| fail "request error"}#": #{http.pretty_inspect}\n\nnodes: #{@goliaths.values.map {|g|g.node}.pretty_inspect}"}
   #puts "EM.threadpool.count:#{EM.threadpool.count}"
-  http = EM::Synchrony.sync(http)
+  EM::Synchrony.sync(http)
   #puts "EM.threadpool.count:#{EM.threadpool.count}"
-  fail "request unfinished" unless http.finished?
+  #fail "request invalid" if http.nil?
+  fail "request unfinished: #{http}" unless http.finished?
   #fail "request unfinished (http = #{http.pretty_inspect})" unless http.finished?
 end
 
