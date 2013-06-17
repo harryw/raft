@@ -6,9 +6,9 @@ module Raft
   class Goliath
 
     def self.log(message)
-      STDOUT.write("\n\n")
-      STDOUT.write(message)
-      STDOUT.write("\n\n")
+      #STDOUT.write("\n\n")
+      #STDOUT.write(message)
+      #STDOUT.write("\n\n")
     end
 
     class HttpJsonRpcResponder < ::Goliath::API

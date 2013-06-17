@@ -119,6 +119,6 @@ Feature: Elect a single leader for the cluster
       | index | term | command |
       | 0     | 0    | A       |
       | 1     | 1    | B       |
-      | 2     | 2    | D       |
+      | 2     | 1    | D       |
 
 
