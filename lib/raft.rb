@@ -1,7 +1,7 @@
 require 'delegate'
 
 module Raft
-  Config = Struct.new(:rpc_provider, :async_provider, :election_timeout, :update_interval, :heartbeat_interval)
+  Config = Struct.new(:rpc_provider, :async_provider, :election_timeout, :election_splay, :update_interval, :heartbeat_interval)
 
   class Cluster
     attr_reader :node_ids
@@ -20,6 +20,22 @@ module Raft
 
     def initialize(term, index, command)
       @term, @index, @command = term, index, command
+    end
+
+    def ==(other)
+      [:term, :index, :command].all? do |attr|
+        self.send(attr) == other.send(attr)
+      end
+    end
+
+    def eql?(other)
+      self == other
+    end
+
+    def hash
+      [:term, :index, :command].reduce(0) do |h, attr|
+        h ^= self.send(attr)
+      end
     end
   end
 
@@ -129,13 +145,19 @@ module Raft
   end
 
   class Timer
-    def initialize(interval)
-      @interval = interval
-      @start = Time.now - interval
+    def initialize(interval, splay=0.0)
+      @interval = interval.to_f
+      @splay = splay.to_f
+      @start = Time.now - @interval + (rand * @splay)
+    end
+
+    def splayed_interval
+      (@interval + (rand * @splay))#.tap {|t|STDOUT.write("\nsplayed interval is #{t}\n")}
     end
 
     def reset!
-      @start = Time.now
+      @start = Time.now + splayed_interval
+      #STDOUT.write("\ntimer will elapse at #{timeout.strftime('%H:%M:%S:%L')} (timeout is #{timeout.class})\n")
     end
 
     def timeout
@@ -143,6 +165,7 @@ module Raft
     end
 
     def timed_out?
+      #STDOUT.write("\ntime is #{Time.now.strftime('%M:%S:%L')}\n")
       Time.now > timeout
     end
   end
@@ -167,7 +190,7 @@ module Raft
       @cluster = cluster
       @persistent_state = PersistentState.new
       @temporary_state = TemporaryState.new(nil, nil)
-      @election_timer = Timer.new(config.election_timeout)
+      @election_timer = Timer.new(config.election_timeout, config.election_splay)
       @commit_handler = commit_handler || (block.to_proc if block_given?)
     end
 
@@ -189,6 +212,7 @@ module Raft
 
     def follower_update
       if @election_timer.timed_out?
+        #STDOUT.write("follower node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
         @role = CANDIDATE_ROLE
         candidate_update
       end
@@ -198,6 +222,7 @@ module Raft
 
     def candidate_update
       if @election_timer.timed_out?
+        #STDOUT.write("candidate node #{@id} election timed out at #{Time.now.strftime('%H:%M:%S:%L')}\n")
         @persistent_state.current_term += 1
         @persistent_state.voted_for = @id
         reset_election_timeout
@@ -288,7 +313,7 @@ module Raft
     protected :establish_leadership
 
     def send_heartbeats
-      #STDOUT.write("\nsending heartbeats\n")
+      #STDOUT.write("\nnode #{@id} sending heartbeats at #{Time.now.strftime('%H:%M:%S:%L')}\n")
       last_log_entry = @persistent_state.log.last
       log_index = last_log_entry ? last_log_entry.index : nil
       log_term = last_log_entry ? last_log_entry.term : nil
@@ -346,6 +371,7 @@ module Raft
     protected :append_entries_to_follower
 
     def handle_request_vote(request)
+      #STDOUT.write("\nnode #{@id} handling vote request from #{request.candidate_id}\n")
       response = RequestVoteResponse.new
       response.term = @persistent_state.current_term
       response.vote_granted = false
@@ -381,11 +407,12 @@ module Raft
     end
 
     def handle_append_entries(request)
-      #STDOUT.write("\n\nnode #{@id} handle_append_entries: #{request.entries.pretty_inspect}\n\n") if request.prev_log_index.nil?
+      #STDOUT.write("\n\nnode #{@id} handle_append_entries: #{request.entries.pretty_inspect}\n\n") #if request.prev_log_index.nil?
       response = AppendEntriesResponse.new
       response.term = @persistent_state.current_term
       response.success = false
 
+      #STDOUT.write("\n\nnode #{@id} handle_append_entries for term #{request.term} (current is #{@persistent_state.current_term})\n")# if request.prev_log_index.nil?
       return response if request.term < @persistent_state.current_term
       #STDOUT.write("\n\nnode #{@id} handle_append_entries stage 2\n") if request.prev_log_index.nil?
 

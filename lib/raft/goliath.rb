@@ -6,9 +6,9 @@ module Raft
   class Goliath
 
     def self.log(message)
-      STDOUT.write("\n\n")
-      STDOUT.write(message)
-      STDOUT.write("\n\n")
+      #STDOUT.write("\n\n")
+      #STDOUT.write(message)
+      #STDOUT.write("\n\n")
     end
 
     class HttpJsonRpcResponder < ::Goliath::API
@@ -36,6 +36,7 @@ module Raft
       end
 
       def request_vote_response(params)
+        #STDOUT.write("\nnode #{@node.id} received request_vote from #{params['candidate_id']}, term #{params['term']}\n")
         request = Raft::RequestVoteRequest.new(
             params['term'],
             params['candidate_id'],
@@ -46,6 +47,7 @@ module Raft
       end
 
       def append_entries_response(params)
+        #STDOUT.write("\nnode #{@node.id} received append_entries from #{params['leader_id']}, term #{params['term']}\n")
         entries = params['entries'].map {|entry| Raft::LogEntry.new(entry['term'], entry['index'], entry['command'])}
         request = Raft::AppendEntriesRequest.new(
             params['term'],
@@ -56,6 +58,7 @@ module Raft
             params['commit_index'])
         #STDOUT.write("\nnode #{@node.id} received entries: #{request.entries.pretty_inspect}\n")
         response = @node.handle_append_entries(request)
+        #STDOUT.write("\nnode #{@node.id} completed append_entries from #{params['leader_id']}, term #{params['term']} (#{response})\n")
         [200, HEADERS, { 'term' => response.term, 'success' => response.success }]
       end
 

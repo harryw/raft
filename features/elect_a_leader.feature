@@ -52,7 +52,7 @@ Feature: Elect a single leader for the cluster
     When I send the command "A" to the node on port 8000
     Then the node on port 8000 should have the following log:
       | index | term | command |
-      | 0     | 0    | A       |
+      | 0     | 1    | A       |
 
   Scenario: Replicate the leader's log to an empty log
     Given there are nodes on the following ports:
@@ -64,7 +64,7 @@ Feature: Elect a single leader for the cluster
     And I await full replication
     Then the node on port 8000 should have the following log:
       | index | term | command |
-      | 0     | 0    | A       |
+      | 0     | 1    | A       |
 
   Scenario: Replicate the leader's log to a conflicting log
     Given there are nodes on the following ports:
@@ -119,6 +119,6 @@ Feature: Elect a single leader for the cluster
       | index | term | command |
       | 0     | 0    | A       |
       | 1     | 1    | B       |
-      | 2     | 2    | D       |
+      | 2     | 1    | D       |
 
 
