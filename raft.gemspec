@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'raft'
-  s.version     = '0.1.0'
+  s.version     = '0.1.1'
   s.date        = '2013-06-16'
   s.summary     = "A simple Raft distributed consensus implementation"
   s.description = s.summary
