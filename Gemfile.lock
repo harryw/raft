@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    raft (0.0.3)
+    raft (0.1.0)
       goliath (~> 1.0)
       multi_json (~> 1.3)
 
