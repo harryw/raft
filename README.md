@@ -95,7 +95,7 @@ end
 
 If you encounter problems with this gem, please feel free to raise an issue in the GitHub issue tracker.
 
-Suggestions are also welcome.  For general (non-actionable) feedback, try [Twitter](twitter.com/harwilk).
+Suggestions are also welcome.  For general (non-actionable) feedback, try [Twitter](http://twitter.com/harwilk).
 
 ## Contributing
 
