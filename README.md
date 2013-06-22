@@ -91,3 +91,18 @@ If you would like to execute commands as they are committed, you can assign a co
 end
 ```
 
+## Issues and Feedback
+
+If you encounter problems with this gem, please feel free to raise an issue in the GitHub issue tracker.
+
+Suggestions are also welcome.  For general (non-actionable) feedback, try [Twitter](twitter.com/harwilk).
+
+## Contributing
+
+Fork this repository and make a pull request!
+
+## License
+
+Raft is released under the [MIT license](/LICENSE).
+
+
