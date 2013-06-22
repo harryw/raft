@@ -1,6 +1,5 @@
 Before do
   @goliaths = {}
-  rpc_provider =
   @config = Raft::Config.new(
       Raft::Goliath.rpc_provider(Proc.new {|node_id, message| URI("http://localhost:#{node_id}/#{message}")}),
       Raft::Goliath.async_provider,

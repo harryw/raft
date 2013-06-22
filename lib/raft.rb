@@ -6,8 +6,8 @@ module Raft
   class Cluster
     attr_reader :node_ids
 
-    def initialize
-      @node_ids = []
+    def initialize(*node_ids)
+      @node_ids = node_ids
     end
 
     def quorum
