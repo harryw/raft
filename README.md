@@ -79,7 +79,7 @@ response = node.handle_command(request) # response is a Raft::CommandResponse
 ```
 
 `Raft::Node#handle_command` will not return success until the command has been replicated to a majority of nodes,
-so that it is considered /committed/ and is safe to execute.
+so that it is considered *committed* and is safe to execute.
 
 If you would like to execute commands as they are committed, you can assign a commit handler for each node:
 
