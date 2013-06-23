@@ -52,7 +52,7 @@ When(/^I send the command "(.*?)" to the node on port (\d+)$/) do |command, port
   http = EventMachine::HttpRequest.new("http://localhost:#{port}/command").apost(
       :body => %Q({"command": "#{command}"}),
       :head => { 'Content-Type' => 'application/json' })
-  http.timeout 5
+  http.timeout 10
   http.errback {|*args| fail "request error"}#": #{http.pretty_inspect}\n\nnodes: #{@goliaths.values.map {|g|g.node}.pretty_inspect}"}
   #puts "EM.threadpool.count:#{EM.threadpool.count}"
   EM::Synchrony.sync(http)
