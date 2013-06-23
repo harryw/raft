@@ -82,7 +82,7 @@ Given(/^all the nodes have empty logs$/) do
   end
 end
 
-Given(/^the nodes on port (\d+) has an empty log$/) do |port|
+Given(/^the node on port (\d+) has an empty log$/) do |port|
   clear_log_on_node(@goliaths[port].node)
 end
 
