@@ -1,5 +1,7 @@
 # Raft
 
+[![Build Status](https://travis-ci.org/harryw/raft.png?branch=develop)](https://travis-ci.org/harryw/raft)
+
 This is a Ruby implementation of the Raft algorithm.
 
 Raft is a distributed consensus algorithm designed to be easy to understand. The algorithm is the work of Diego Ongaro
