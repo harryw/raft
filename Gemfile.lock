@@ -71,6 +71,7 @@ PLATFORMS
 DEPENDENCIES
   cucumber (~> 1.0)
   em-http-request (~> 1.0)
+  jrjackson (~> 0.1.0)
   oj (~> 2.0)
   raft!
   rspec (~> 2.0)

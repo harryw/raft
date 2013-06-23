@@ -1,5 +1,7 @@
 # Raft
 
+[![Build Status](https://travis-ci.org/harryw/raft.png?branch=develop)](https://travis-ci.org/harryw/raft)
+
 This is a Ruby implementation of the Raft algorithm.
 
 Raft is a distributed consensus algorithm designed to be easy to understand. The algorithm is the work of Diego Ongaro
@@ -14,10 +16,28 @@ Many thanks to the authors for their hard work!
 This gem provides a `Raft::Node` class that handles log replication across a cluster of peer nodes.  Design decisions
 about the RPC protocol, concurrency mechanism, error handling and data persistence are left to the client.
 
-For convenience and testing, an example implementation is provided based on HTTP and EventMachine, with in-memory
+For convenience and testing, an example implementation is provided based on Goliath and EventMachine, with in-memory
 data persistence.  Contributions of further examples are very welcome!
 
 ## Usage
+
+Install the gem:
+
+```bash
+gem install raft
+```
+
+In your code, add a require:
+
+```ruby
+require 'raft'
+```
+
+If you'd like to use the example Goliath implementation, add:
+
+```ruby
+require 'raft/goliath'
+```
 
 Raft replicates commands across a cluster of nodes.  Each node in the cluster is aware of every other node in the
 cluster.  Let's create a new cluster and define its configuration:

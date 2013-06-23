@@ -30,22 +30,46 @@ Feature: Elect a single leader for the cluster
       | 8000 |
       | 8001 |
       | 8002 |
-    And the nodes on port 8000 has an empty log
+    And the node on port 8000 has an empty log
     And the node on port 8001 has the following log:
       | index | term | command |
       | 0     | 0    | A       |
-      | 1     | 1    | B       |
-      | 2     | 1    | C       |
+      | 1     | 0    | B       |
+      | 2     | 0    | C       |
     And the node on port 8002 has the following log:
       | index | term | command |
       | 0     | 0    | A       |
-      | 1     | 1    | B       |
-    And the node on port 8001's current term is 1
+      | 1     | 0    | B       |
+#    And the node port port 8001 has as commit index of 1
+#    And the node port port 8002 has as commit index of 1
     When I send the command "D" to the node on port 8000
     Then a single node on one of the following ports should be in the "LEADER" role:
       | 8001 |
       | 8002 |
 
+  Scenario: Elect a node with a higher-than-most term
+    Given there are nodes on the following ports:
+      | 8000 |
+      | 8001 |
+      | 8002 |
+    And the node on port 8000 has an empty log
+    And the node on port 8001 has the following log:
+      | index | term | command |
+      | 0     | 0    | A       |
+      | 1     | 1    | B       |
+      | 2     | 2    | C       |
+    And the node on port 8002 has the following log:
+      | index | term | command |
+      | 0     | 0    | A       |
+      | 1     | 1    | B       |
+#    And the node port port 8001 has as commit index of 1
+#    And the node port port 8002 has as commit index of 1
+    And the node on port 8001's current term is 2
+    And the node on port 8002's current term is 1
+    When I send the command "D" to the node on port 8000
+    Then a single node on one of the following ports should be in the "LEADER" role:
+      | 8001 |
+      | 8002 |
 
   Scenario: Accept a command and append it to the log
     Given there is a node on port 8000
@@ -62,9 +86,8 @@ Feature: Elect a single leader for the cluster
     And all the nodes have empty logs
     When I send the command "A" to the node on port 8000
     And I await full replication
-    Then the node on port 8000 should have the following log:
-      | index | term | command |
-      | 0     | 1    | A       |
+    Then the node on port 8000 should have the following commands in the log:
+      | A       |
 
   Scenario: Replicate the leader's log to a conflicting log
     Given there are nodes on the following ports:

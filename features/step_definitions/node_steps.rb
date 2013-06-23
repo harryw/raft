@@ -52,7 +52,7 @@ When(/^I send the command "(.*?)" to the node on port (\d+)$/) do |command, port
   http = EventMachine::HttpRequest.new("http://localhost:#{port}/command").apost(
       :body => %Q({"command": "#{command}"}),
       :head => { 'Content-Type' => 'application/json' })
-  http.timeout 5
+  http.timeout 10
   http.errback {|*args| fail "request error"}#": #{http.pretty_inspect}\n\nnodes: #{@goliaths.values.map {|g|g.node}.pretty_inspect}"}
   #puts "EM.threadpool.count:#{EM.threadpool.count}"
   EM::Synchrony.sync(http)
@@ -82,7 +82,7 @@ Given(/^all the nodes have empty logs$/) do
   end
 end
 
-Given(/^the nodes on port (\d+) has an empty log$/) do |port|
+Given(/^the node on port (\d+) has an empty log$/) do |port|
   clear_log_on_node(@goliaths[port].node)
 end
 
@@ -96,7 +96,12 @@ Given(/^the node on port (\d+)'s current term is (\d+)$/) do |port, term|
 end
 
 Then(/^a single node on one of the following ports should be in the "(.*?)" role:$/) do |role, table|
-  table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
+  begin
+    table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
+  rescue
+    @goliaths.values.map(&:node).each {|node| puts "Node #{node.id}: role #{node.role}"}
+    raise
+  end
 end
 
 Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
@@ -104,8 +109,30 @@ Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
   @goliaths[port].node.persistent_state.log.should == log
 end
 
+Then(/^the node on port (\d+) should have the following commands in the log:$/) do |port, table|
+  commands = table.raw.map(&:first)
+  @goliaths[port].node.persistent_state.log.map(&:command).should == commands
+end
+
 When(/^I await full replication$/) do
-  EM::Synchrony.sleep(5)
+  # Allow up to 10 seconds
+  begin
+    Timeout::timeout(10) do
+      consistent_check = Proc.new do
+        first_node = @goliaths.values.first.node
+        @goliaths.values.map(&:node).all? do |node|
+          cons = first_node.persistent_state.log == node.persistent_state.log
+          cons &&= first_node.temporary_state.commit_index == node.temporary_state.commit_index
+          cons && first_node.temporary_state.commit_index == first_node.persistent_state.log.last.index
+        end
+      end
+      until consistent_check.call
+        EM::Synchrony.sleep(1)
+      end
+    end
+  rescue Timeout::Error
+    # this just means we've waited more than long enough
+  end
 end
 
 Given(/^the node port port (\d+) has as commit index of (\d+)$/) do |port, commit_index|
