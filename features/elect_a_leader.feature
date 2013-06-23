@@ -62,9 +62,8 @@ Feature: Elect a single leader for the cluster
     And all the nodes have empty logs
     When I send the command "A" to the node on port 8000
     And I await full replication
-    Then the node on port 8000 should have the following log:
-      | index | term | command |
-      | 0     | 1    | A       |
+    Then the node on port 8000 should have the following commands in the log:
+      | A       |
 
   Scenario: Replicate the leader's log to a conflicting log
     Given there are nodes on the following ports:

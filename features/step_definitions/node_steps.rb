@@ -104,6 +104,10 @@ Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
   @goliaths[port].node.persistent_state.log.should == log
 end
 
+Then(/^the node on port (\d+) should have the following commands in the log:$/) do |port, table|
+  commands = table.raw.map(&:first)
+  @goliaths[port].node.persistent_state.log.map(&:command).should == commands
+end
 When(/^I await full replication$/) do
   EM::Synchrony.sleep(5)
 end
