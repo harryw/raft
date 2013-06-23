@@ -96,7 +96,12 @@ Given(/^the node on port (\d+)'s current term is (\d+)$/) do |port, term|
 end
 
 Then(/^a single node on one of the following ports should be in the "(.*?)" role:$/) do |role, table|
-  table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
+  begin
+    table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
+  rescue
+    @goliaths.values.each {|node| puts "Node #{node.id}: role #{node.role}"}
+    raise
+  end
 end
 
 Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
@@ -108,8 +113,26 @@ Then(/^the node on port (\d+) should have the following commands in the log:$/) 
   commands = table.raw.map(&:first)
   @goliaths[port].node.persistent_state.log.map(&:command).should == commands
 end
+
 When(/^I await full replication$/) do
-  EM::Synchrony.sleep(5)
+  # Allow up to 10 seconds
+  begin
+    Timeout::timeout(10) do
+      consistent_check = Proc.new do
+        first_node = @goliaths.values.first.node
+        @goliaths.values.map(&:node).all? do |node|
+          cons = first_node.persistent_state.log == node.persistent_state.log
+          cons &&= first_node.temporary_state.commit_index == node.temporary_state.commit_index
+          cons && first_node.temporary_state.commit_index == first_node.persistent_state.log.last.index
+        end
+      end
+      until consistent_check.call
+        EM::Synchrony.sleep(1)
+      end
+    end
+  rescue Timeout::Error
+    # this just means we've waited more than long enough
+  end
 end
 
 Given(/^the node port port (\d+) has as commit index of (\d+)$/) do |port, commit_index|
