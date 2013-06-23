@@ -44,6 +44,15 @@ def update_log_on_node(node, new_log)
   new_log.each {|log_entry| log << log_entry}
 end
 
+def consistent_logs?
+  first_node = @goliaths.values.first.node
+  @goliaths.values.map(&:node).all? do |node|
+    cons = first_node.persistent_state.log == node.persistent_state.log
+    cons &&= first_node.temporary_state.commit_index == node.temporary_state.commit_index
+    cons && first_node.temporary_state.commit_index == first_node.persistent_state.log.last.index
+  end
+end
+
 Given(/^there is a node on port (\d+)$/) do |port|
   create_node_on_port(port)
 end
@@ -115,24 +124,24 @@ Then(/^the node on port (\d+) should have the following commands in the log:$/) 
 end
 
 When(/^I await full replication$/) do
+  f = Fiber.current
+
   # Allow up to 10 seconds
-  begin
-    Timeout::timeout(10) do
-      consistent_check = Proc.new do
-        first_node = @goliaths.values.first.node
-        @goliaths.values.map(&:node).all? do |node|
-          cons = first_node.persistent_state.log == node.persistent_state.log
-          cons &&= first_node.temporary_state.commit_index == node.temporary_state.commit_index
-          cons && first_node.temporary_state.commit_index == first_node.persistent_state.log.last.index
-        end
-      end
-      until consistent_check.call
-        EM::Synchrony.sleep(1)
-      end
-    end
-  rescue Timeout::Error
-    # this just means we've waited more than long enough
+  timeout_timer = EventMachine.add_timer(10) do
+    f.resume
   end
+
+  # Check every 1 second
+  check_timer = EventMachine.add_periodic_timer(1) do
+    if consistent_logs?
+      f.resume
+    end
+  end
+
+  Fiber.yield
+
+  EventMachine.cancel_timer(check_timer)
+  EventMachine.cancel_timer(timeout_timer)
 end
 
 Given(/^the node port port (\d+) has as commit index of (\d+)$/) do |port, commit_index|
