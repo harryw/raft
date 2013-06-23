@@ -99,7 +99,7 @@ Then(/^a single node on one of the following ports should be in the "(.*?)" role
   begin
     table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
   rescue
-    @goliaths.values.each {|node| puts "Node #{node.id}: role #{node.role}"}
+    @goliaths.values.map(&:node).each {|node| puts "Node #{node.id}: role #{node.role}"}
     raise
   end
 end
