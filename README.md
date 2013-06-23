@@ -1,6 +1,7 @@
 # Raft
 
 [![Build Status](https://travis-ci.org/harryw/raft.png?branch=develop)](https://travis-ci.org/harryw/raft)
+[![Dependency Status](https://gemnasium.com/harryw/raft.png)](https://gemnasium.com/harryw/raft)
 
 This is a Ruby implementation of the Raft algorithm.
 
