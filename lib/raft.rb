@@ -384,7 +384,7 @@ module Raft
 
       if FOLLOWER_ROLE == @role
         if @persistent_state.voted_for == request.candidate_id
-          response.vote_granted = success
+          response.vote_granted = true
         elsif @persistent_state.voted_for.nil?
           if @persistent_state.log.empty?
             # this node has no log so it can't be ahead
