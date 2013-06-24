@@ -1,6 +1,5 @@
 Before do
   @goliaths = {}
-  rpc_provider =
   @config = Raft::Config.new(
       Raft::Goliath.rpc_provider(Proc.new {|node_id, message| URI("http://localhost:#{node_id}/#{message}")}),
       Raft::Goliath.async_provider,
@@ -45,6 +44,15 @@ def update_log_on_node(node, new_log)
   new_log.each {|log_entry| log << log_entry}
 end
 
+def consistent_logs?
+  first_node = @goliaths.values.first.node
+  @goliaths.values.map(&:node).all? do |node|
+    cons = first_node.persistent_state.log == node.persistent_state.log
+    cons &&= first_node.temporary_state.commit_index == node.temporary_state.commit_index
+    cons && first_node.temporary_state.commit_index == first_node.persistent_state.log.last.index
+  end
+end
+
 Given(/^there is a node on port (\d+)$/) do |port|
   create_node_on_port(port)
 end
@@ -53,7 +61,7 @@ When(/^I send the command "(.*?)" to the node on port (\d+)$/) do |command, port
   http = EventMachine::HttpRequest.new("http://localhost:#{port}/command").apost(
       :body => %Q({"command": "#{command}"}),
       :head => { 'Content-Type' => 'application/json' })
-  http.timeout 5
+  http.timeout 10
   http.errback {|*args| fail "request error"}#": #{http.pretty_inspect}\n\nnodes: #{@goliaths.values.map {|g|g.node}.pretty_inspect}"}
   #puts "EM.threadpool.count:#{EM.threadpool.count}"
   EM::Synchrony.sync(http)
@@ -83,7 +91,7 @@ Given(/^all the nodes have empty logs$/) do
   end
 end
 
-Given(/^the nodes on port (\d+) has an empty log$/) do |port|
+Given(/^the node on port (\d+) has an empty log$/) do |port|
   clear_log_on_node(@goliaths[port].node)
 end
 
@@ -97,7 +105,12 @@ Given(/^the node on port (\d+)'s current term is (\d+)$/) do |port, term|
 end
 
 Then(/^a single node on one of the following ports should be in the "(.*?)" role:$/) do |role, table|
-  table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
+  begin
+    table.raw.map {|row| row[0]}.select {|port| @goliaths[port].node.role == role_code(role)}.should have(1).item
+  rescue
+    @goliaths.values.map(&:node).each {|node| puts "Node #{node.id}: role #{node.role}"}
+    raise
+  end
 end
 
 Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
@@ -105,8 +118,30 @@ Then(/^the node on port (\d+) should have the following log:$/) do |port, table|
   @goliaths[port].node.persistent_state.log.should == log
 end
 
+Then(/^the node on port (\d+) should have the following commands in the log:$/) do |port, table|
+  commands = table.raw.map(&:first)
+  @goliaths[port].node.persistent_state.log.map(&:command).should == commands
+end
+
 When(/^I await full replication$/) do
-  EM::Synchrony.sleep(5)
+  f = Fiber.current
+
+  # Allow up to 10 seconds
+  timeout_timer = EventMachine.add_timer(10) do
+    f.resume
+  end
+
+  # Check every 1 second
+  check_timer = EventMachine.add_periodic_timer(1) do
+    if consistent_logs?
+      f.resume
+    end
+  end
+
+  Fiber.yield
+
+  EventMachine.cancel_timer(check_timer)
+  EventMachine.cancel_timer(timeout_timer)
 end
 
 Given(/^the node port port (\d+) has as commit index of (\d+)$/) do |port, commit_index|

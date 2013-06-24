@@ -6,8 +6,8 @@ module Raft
   class Cluster
     attr_reader :node_ids
 
-    def initialize
-      @node_ids = []
+    def initialize(*node_ids)
+      @node_ids = node_ids
     end
 
     def quorum
@@ -234,8 +234,8 @@ module Raft
         votes_against = 0
         quorum = @cluster.quorum
         #STDOUT.write("\n\t\t#{@id} requests votes for term #{@persistent_state.current_term}\n\n")
-        @config.rpc_provider.request_votes(request, @cluster) do |_, request, response|
-          #STDOUT.write("\n\t\t#{@id} receives vote #{response.vote_granted}\n\n")
+        @config.rpc_provider.request_votes(request, @cluster) do |voter_id, request, response|
+          #STDOUT.write("\n\t\t#{@id} receives vote #{response.vote_granted} from #{voter_id}\n\n")
           elected = nil # no majority result yet
           if request.term != @persistent_state.current_term
             # this is a response to an out-of-date request, just ignore it
@@ -371,7 +371,7 @@ module Raft
     protected :append_entries_to_follower
 
     def handle_request_vote(request)
-      #STDOUT.write("\nnode #{@id} handling vote request from #{request.candidate_id}\n")
+      #STDOUT.write("\nnode #{@id} handling vote request from #{request.candidate_id} (request.last_log_index: #{request.last_log_index}, vs #{@persistent_state.log.last.index}\n")
       response = RequestVoteResponse.new
       response.term = @persistent_state.current_term
       response.vote_granted = false
@@ -384,16 +384,16 @@ module Raft
 
       if FOLLOWER_ROLE == @role
         if @persistent_state.voted_for == request.candidate_id
-          response.vote_granted = success
+          response.vote_granted = true
         elsif @persistent_state.voted_for.nil?
           if @persistent_state.log.empty?
             # this node has no log so it can't be ahead
             @persistent_state.voted_for = request.candidate_id
             response.vote_granted = true
           elsif request.last_log_term == @persistent_state.log.last.term &&
-              request.last_log_index && request.last_log_index < @persistent_state.log.last.index
+              (request.last_log_index || -1) < @persistent_state.log.last.index
             # candidate's log is incomplete compared to this node
-          elsif request.last_log_term && request.last_log_term < @persistent_state.log.last.term
+          elsif (request.last_log_term || -1) < @persistent_state.log.last.term
             # candidate's log is incomplete compared to this node
           else
             @persistent_state.voted_for = request.candidate_id

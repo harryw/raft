@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'raft'
-  s.version     = '0.1.1'
-  s.date        = '2013-06-16'
+  s.version     = '0.1.3'
+  s.date        = '2013-06-23'
   s.summary     = "A simple Raft distributed consensus implementation"
   s.description = s.summary
   s.authors     = ["Harry Wilkinson"]
@@ -16,6 +16,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'cucumber', '~> 1.0'
   s.add_development_dependency 'em-http-request', '~> 1.0'
   s.add_development_dependency 'rspec', '~> 2.0'
-  s.add_development_dependency 'oj', '~> 2.0'
 
 end
