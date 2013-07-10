@@ -11,6 +11,7 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
 
   s.add_dependency 'goliath', '~> 1.0'
+  s.add_dependency 'sinatra', '~> 1.0'
   s.add_dependency 'multi_json', '~> 1.3'
 
   s.add_development_dependency 'cucumber', '~> 1.0'
